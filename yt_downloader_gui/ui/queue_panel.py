@@ -21,7 +21,7 @@ class QueueListItem(QListWidgetItem):
         url = self.queue_item.url
         short_url = url[:45] + "…" if len(url) > 45 else url
         icon = _STATUS_ICONS[self.queue_item.status]
-        self.setText(f"{icon}  {short_url}  [{self.queue_item.fmt}]")
+        self.setText(f"{icon}  {short_url}")
         self.setToolTip(self.queue_item.title if self.queue_item.title else "")
 
 
