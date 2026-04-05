@@ -144,3 +144,15 @@ def test_parse_media_info_missing_keys():
     assert info["resolutions"] == ["Best available"]
     assert info["audio_tracks"] == ["(best)"]
     assert info["subtitle_langs"] == []
+
+
+def test_parse_codecs_deduplication():
+    """Duplicate codec streams at same resolution appear only once."""
+    formats = [
+        {"height": 1080, "ext": "mp4", "vcodec": "avc1.64002a", "acodec": "none", "fps": 30},
+        {"height": 1080, "ext": "mp4", "vcodec": "avc1.64002a", "acodec": "none", "fps": 30},
+    ]
+    data = {"formats": formats, "subtitles": {}, "automatic_captions": {}}
+    info = parse_media_info(data)
+    codecs = info["formats_by_resolution"]["1080p"]
+    assert codecs.count("mp4 (avc1, 30fps)") == 1
