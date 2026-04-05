@@ -19,4 +19,6 @@ class AppSettings:
         self._qs.setValue("geometry", geometry)
 
     def load_geometry(self) -> bytes | None:
-        return self._qs.value("geometry", None)
+        if not self._qs.contains("geometry"):
+            return None
+        return self._qs.value("geometry", type=bytes)
