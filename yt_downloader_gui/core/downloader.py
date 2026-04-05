@@ -41,3 +41,45 @@ def build_args(item: QueueItem, output_dir: str) -> list[str]:
 
     args.append(item.url)
     return args
+
+
+class DownloadWorker(QThread):
+    progress = pyqtSignal(int)
+    log_line = pyqtSignal(str)
+    finished = pyqtSignal()
+    error = pyqtSignal(str)
+
+    def __init__(self, item: QueueItem, output_dir: str, parent=None):
+        super().__init__(parent)
+        self._item = item
+        self._output_dir = output_dir
+        self._process: subprocess.Popen | None = None
+
+    def run(self) -> None:
+        args = build_args(self._item, self._output_dir)
+        try:
+            self._process = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            for line in self._process.stdout:
+                line = line.rstrip()
+                self.log_line.emit(line)
+                m = PROGRESS_RE.search(line)
+                if m:
+                    self.progress.emit(int(float(m.group(1))))
+            self._process.wait()
+            if self._process.returncode == 0:
+                self.finished.emit()
+            else:
+                self.error.emit(f"yt-dlp exited with code {self._process.returncode}")
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+    def stop(self) -> None:
+        if self._process is not None:
+            self._process.terminate()
