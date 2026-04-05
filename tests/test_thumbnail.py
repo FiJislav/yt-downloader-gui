@@ -63,6 +63,7 @@ def test_thumbnail_worker_emits_failed_on_nonzero_exit(qapp, qtbot):
             worker.start()
 
     assert len(reasons) == 1
+    assert "ERROR: Unsupported URL" in reasons[0]
 
 
 def test_thumbnail_worker_emits_failed_on_exception(qapp, qtbot):
