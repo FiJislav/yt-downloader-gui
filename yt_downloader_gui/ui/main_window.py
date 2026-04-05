@@ -26,6 +26,7 @@ class MainWindow(QMainWindow):
         self._worker: DownloadWorker | None = None
         self._updater: UpdaterWorker | None = None
         self._thumbnail_workers: list[ThumbnailWorker] = []
+        self._queue_paused: bool = False
         self._build_ui()
         self._restore_geometry()
         self.setWindowTitle("YT Downloader")
@@ -150,6 +151,9 @@ class MainWindow(QMainWindow):
             list_item.queue_item.status = ItemStatus.ERROR
             list_item.setToolTip(reason)
             list_item.refresh()
+            current = self._queue_panel.currentItem()
+            if current is list_item:
+                self._detail_panel.load_item(list_item.queue_item)
             self._remove_thumbnail_worker(worker)
 
         worker.fetched.connect(on_fetched)
@@ -171,6 +175,7 @@ class MainWindow(QMainWindow):
     def _on_start_queue(self) -> None:
         if self._worker is not None:
             return  # already running
+        self._queue_paused = False
         next_item = self._queue_panel.next_pending()
         if next_item is None:
             return
@@ -225,11 +230,14 @@ class MainWindow(QMainWindow):
         self._worker.start()
 
     def _advance_queue(self) -> None:
+        if self._queue_paused:
+            return
         next_item = self._queue_panel.next_pending()
         if next_item is not None:
             self._run_item(next_item)
 
     def _on_stop(self) -> None:
+        self._queue_paused = True
         if self._worker is not None:
             self._worker.stop()
         for i in range(self._queue_panel.count()):
@@ -272,4 +280,10 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         self._settings.save_geometry(bytes(self.saveGeometry()))
+        for worker in list(self._thumbnail_workers):
+            worker.quit()
+            worker.wait(500)
+        if self._worker is not None:
+            self._worker.stop()
+            self._worker.wait(1000)
         super().closeEvent(event)
