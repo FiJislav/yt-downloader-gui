@@ -15,7 +15,7 @@ def parse_media_info(data: dict) -> dict:
     for f in formats:
         h = f.get("height")
         vc = f.get("vcodec", "none")
-        if h and vc != "none" and h not in seen_heights:
+        if h and vc != "none" and h not in seen_heights:  # h=0 and h=None are falsy: intentionally excluded
             seen_heights.append(h)
     seen_heights.sort(reverse=True)
     resolutions = ["Best available"] + [f"{h}p" for h in seen_heights]
@@ -33,7 +33,7 @@ def parse_media_info(data: dict) -> dict:
             ext = f.get("ext", "?")
             vc_full = f.get("vcodec", "?")
             vc_short = vc_full.split(".")[0]
-            fps = int(f.get("fps") or 0)
+            fps = int(float(f.get("fps") or 0))
             label = f"{ext} ({vc_short}, {fps}fps)"
             if label not in entries:
                 entries.append(label)
