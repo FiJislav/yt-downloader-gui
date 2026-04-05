@@ -1,7 +1,7 @@
 from __future__ import annotations
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+    QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMainWindow, QMessageBox, QPushButton,
     QSplitter, QVBoxLayout, QWidget,
 )
@@ -112,7 +112,6 @@ class MainWindow(QMainWindow):
         self._url_input.clear()
 
     def _on_paste(self) -> None:
-        from PyQt6.QtWidgets import QApplication
         text = QApplication.clipboard().text().strip()
         if text.startswith("http://") or text.startswith("https://"):
             self._add_url(text)
@@ -170,6 +169,8 @@ class MainWindow(QMainWindow):
             self._detail_panel.load_item(current.queue_item)
 
     def _on_start_queue(self) -> None:
+        if self._worker is not None:
+            return  # already running
         next_item = self._queue_panel.next_pending()
         if next_item is None:
             return
