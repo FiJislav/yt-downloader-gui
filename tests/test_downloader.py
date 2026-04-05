@@ -1,10 +1,18 @@
+import pytest
+from unittest.mock import patch, MagicMock
+from PyQt6.QtCore import QCoreApplication
+
 from yt_downloader_gui.core.models import QueueItem
-from yt_downloader_gui.core.downloader import build_args
+from yt_downloader_gui.core.downloader import build_args, DownloadWorker
 
 
 def _item(**kwargs) -> QueueItem:
     return QueueItem(url="https://example.com/watch?v=abc", **kwargs)
 
+
+# ---------------------------------------------------------------------------
+# build_args tests
+# ---------------------------------------------------------------------------
 
 def test_mp4_args():
     args = build_args(_item(fmt="mp4"), output_dir="")
@@ -83,16 +91,13 @@ def test_url_is_last_arg():
     assert args[-1] == "https://example.com/watch?v=abc"
 
 
-import pytest
-from unittest.mock import patch, MagicMock
-from PyQt6.QtCore import QCoreApplication
-from yt_downloader_gui.core.downloader import DownloadWorker
-
+# ---------------------------------------------------------------------------
+# DownloadWorker tests
+# ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
 def qapp():
-    app = QCoreApplication.instance() or QCoreApplication([])
-    return app
+    return QCoreApplication.instance() or QCoreApplication([])
 
 
 def test_download_worker_emits_progress(qapp, qtbot):
