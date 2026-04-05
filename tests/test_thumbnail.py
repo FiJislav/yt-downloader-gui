@@ -23,7 +23,16 @@ def _make_mock_result(title="Test Video", thumbnail_url="http://example.com/thum
 def test_thumbnail_worker_emits_fetched_on_success(qapp, qtbot):
     worker = ThumbnailWorker("https://example.com/watch?v=abc")
     mock_result = _make_mock_result()
-    # Fake 1x1 PNG bytes
+    # Override stdout to include a formats key so parse_media_info has data
+    mock_result.stdout = json.dumps({
+        "title": "Test Video",
+        "thumbnail": "http://example.com/thumb.jpg",
+        "formats": [
+            {"height": 1080, "ext": "mp4", "vcodec": "avc1.64002a", "acodec": "none", "fps": 30},
+        ],
+        "subtitles": {"en": []},
+        "automatic_captions": {},
+    })
     fake_img = (
         b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
         b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00"
@@ -39,17 +48,22 @@ def test_thumbnail_worker_emits_fetched_on_success(qapp, qtbot):
          patch("yt_downloader_gui.core.thumbnail.urllib.request.urlopen", return_value=mock_resp):
         titles = []
         pixmaps = []
+        media_infos = []
 
-        def on_fetched(t, p):
+        def on_fetched(t, p, m):
             titles.append(t)
             pixmaps.append(p)
+            media_infos.append(m)
 
+        worker.fetched.connect(on_fetched)
         with qtbot.waitSignal(worker.fetched, timeout=3000):
-            worker.fetched.connect(on_fetched)
             worker.start()
 
     assert titles == ["Test Video"]
     assert isinstance(pixmaps[0], QPixmap)
+    assert "resolutions" in media_infos[0]
+    assert "1080p" in media_infos[0]["resolutions"]
+    assert "en" in media_infos[0]["subtitle_langs"]
 
 
 def test_thumbnail_worker_emits_failed_on_nonzero_exit(qapp, qtbot):

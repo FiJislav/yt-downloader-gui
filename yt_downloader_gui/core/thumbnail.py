@@ -69,8 +69,8 @@ def parse_media_info(data: dict) -> dict:
 
 
 class ThumbnailWorker(QThread):
-    fetched = pyqtSignal(str, QPixmap)   # title, pixmap
-    failed = pyqtSignal(str)             # error reason
+    fetched = pyqtSignal(str, QPixmap, dict)   # title, pixmap, media_info
+    failed = pyqtSignal(str)
 
     def __init__(self, url: str, parent=None):
         super().__init__(parent)
@@ -100,6 +100,7 @@ class ThumbnailWorker(QThread):
                 if image.loadFromData(img_data):
                     pixmap = QPixmap.fromImage(image)
 
-            self.fetched.emit(title, pixmap)
+            media_info = parse_media_info(data)
+            self.fetched.emit(title, pixmap, media_info)
         except Exception as exc:
             self.failed.emit(str(exc))
