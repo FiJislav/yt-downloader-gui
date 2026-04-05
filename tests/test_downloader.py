@@ -43,6 +43,8 @@ def test_4k_args():
 def test_4k_no_av1_args():
     args = build_args(_item(fmt="4k-no-av1"), output_dir="")
     assert any("vcodec!=av01" in a for a in args)
+    assert "--merge-output-format" in args
+    assert "mkv" in args
 
 
 def test_subs_args():
