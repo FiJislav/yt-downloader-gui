@@ -269,6 +269,7 @@ class DetailPanel(QWidget):
         self._progress_bar = QProgressBar()
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(0)
+        self._progress_bar.setFixedHeight(22)
         layout.addWidget(self._progress_bar)
 
         # Log output
