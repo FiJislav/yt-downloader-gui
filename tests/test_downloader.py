@@ -173,7 +173,7 @@ def test_output_dir_added():
     item = _item()
     args = build_args(item, output_dir="C:/Videos")
     assert "-o" in args
-    assert "C:/Videos/%(title)s.%(ext)s" in args
+    assert "C:/Videos/%(uploader)s - %(title)s.%(ext)s" in args
 
 
 def test_url_is_last():

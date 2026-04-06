@@ -65,7 +65,7 @@ def build_args(item: QueueItem, output_dir: str) -> list[str]:
                 args += ["--embed-subs"]
 
     if output_dir:
-        args += ["-o", f"{output_dir}/%(title)s.%(ext)s"]
+        args += ["-o", f"{output_dir}/%(uploader)s - %(title)s.%(ext)s"]
 
     args.append(item.url)
     return args
