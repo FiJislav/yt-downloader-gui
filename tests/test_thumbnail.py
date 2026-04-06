@@ -132,6 +132,8 @@ def test_parse_audio_tracks_skips_none_language():
 
 
 def test_parse_subtitle_langs():
+    # manual "en"/"fr" → both appear; auto "en" → included (matches manual "en");
+    # auto "de" → excluded (no manual "de" and no video language set)
     data = {
         "formats": [],
         "subtitles": {"en": [], "fr": []},
@@ -141,7 +143,21 @@ def test_parse_subtitle_langs():
     assert "en" in info["subtitle_langs"]
     assert "fr" in info["subtitle_langs"]
     assert "en-auto" in info["subtitle_langs"]
-    assert "de-auto" in info["subtitle_langs"]
+    assert "de-auto" not in info["subtitle_langs"]
+
+
+def test_parse_subtitle_auto_for_video_language():
+    # auto captions in video's own language are always included
+    data = {
+        "formats": [],
+        "language": "en-US",
+        "subtitles": {},
+        "automatic_captions": {"en": [], "en-orig": [], "fr": []},
+    }
+    info = parse_media_info(data)
+    assert "en-auto" in info["subtitle_langs"]
+    assert "en-orig-auto" in info["subtitle_langs"]
+    assert "fr-auto" not in info["subtitle_langs"]
 
 
 def test_parse_media_info_empty_formats():

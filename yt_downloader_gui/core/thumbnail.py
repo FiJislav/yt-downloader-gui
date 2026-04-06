@@ -50,14 +50,27 @@ def parse_media_info(data: dict) -> dict:
     audio_tracks = ["(best)"] + sorted(seen_langs)
 
     # --- Subtitle languages ---
-    subtitle_langs: list[str] = []
-    for lang in data.get("subtitles", {}).keys():
-        if lang not in subtitle_langs:
-            subtitle_langs.append(lang)
+    # Manual subtitles: always include all
+    manual_langs = set(data.get("subtitles", {}).keys())
+    subtitle_langs: list[str] = sorted(manual_langs)
+
+    # Auto-generated: only include if relevant to this video —
+    # i.e. the language matches the video's primary language (base code)
+    # or there is also a manual subtitle in that language.
+    vid_lang = (data.get("language") or "").lower()
+    vid_lang_base = vid_lang.split("-")[0]  # "en-US" → "en"
+    manual_bases = {l.split("-")[0].lower() for l in manual_langs}
+
     for lang in data.get("automatic_captions", {}).keys():
-        auto_label = f"{lang}-auto"
-        if auto_label not in subtitle_langs:
-            subtitle_langs.append(auto_label)
+        lang_base = lang.split("-")[0].lower()
+        relevant = (
+            (vid_lang_base and lang_base == vid_lang_base)
+            or lang_base in manual_bases
+        )
+        if relevant:
+            auto_label = f"{lang}-auto"
+            if auto_label not in subtitle_langs:
+                subtitle_langs.append(auto_label)
     subtitle_langs.sort()
 
     return {
