@@ -81,6 +81,32 @@ def parse_media_info(data: dict) -> dict:
     }
 
 
+class PlaylistFetcher(QThread):
+    """Fetch all video URLs from a playlist URL using --flat-playlist."""
+    fetched = pyqtSignal(list)   # list[str] of video URLs
+    failed = pyqtSignal(str)
+
+    def __init__(self, url: str, parent=None):
+        super().__init__(parent)
+        self._url = url
+
+    def run(self) -> None:
+        try:
+            result = subprocess.run(
+                ["yt-dlp", "--flat-playlist", "--print", "webpage_url", self._url],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode != 0:
+                self.failed.emit(result.stderr.strip() or "Failed to fetch playlist")
+                return
+            urls = [u.strip() for u in result.stdout.splitlines() if u.strip()]
+            self.fetched.emit(urls)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class ThumbnailWorker(QThread):
     fetched = pyqtSignal(str, QPixmap, dict)   # title, pixmap, media_info
     failed = pyqtSignal(str)

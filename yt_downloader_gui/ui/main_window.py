@@ -1,4 +1,5 @@
 from __future__ import annotations
+from urllib.parse import urlparse, parse_qs
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
@@ -8,10 +9,12 @@ from PyQt6.QtWidgets import (
 from yt_downloader_gui.core.downloader import DownloadWorker
 from yt_downloader_gui.core.models import ItemStatus
 from yt_downloader_gui.core.settings import AppSettings
-from yt_downloader_gui.core.thumbnail import ThumbnailWorker
+from yt_downloader_gui.core.thumbnail import PlaylistFetcher, ThumbnailWorker
 from yt_downloader_gui.core.updater import UpdaterWorker
 from yt_downloader_gui.ui.detail_panel import DetailPanel
 from yt_downloader_gui.ui.queue_panel import QueueListItem, QueuePanel
+
+_MAX_THUMB_WORKERS = 4   # max concurrent yt-dlp --dump-json processes
 
 
 class MainWindow(QMainWindow):
@@ -26,6 +29,8 @@ class MainWindow(QMainWindow):
         self._worker: DownloadWorker | None = None
         self._updater: UpdaterWorker | None = None
         self._thumbnail_workers: list[ThumbnailWorker] = []
+        self._thumb_pending: list[QueueListItem] = []   # throttle queue
+        self._playlist_fetchers: list[PlaylistFetcher] = []
         self._queue_paused: bool = False
         self._build_ui()
         self._restore_geometry()
@@ -81,6 +86,10 @@ class MainWindow(QMainWindow):
 
         bottom.addStretch()
 
+        self._queue_counter_label = QLabel("")
+        self._queue_counter_label.setMinimumWidth(100)
+        bottom.addWidget(self._queue_counter_label)
+
         self._start_btn = QPushButton("Start Queue")
         self._start_btn.clicked.connect(self._on_start_queue)
         bottom.addWidget(self._start_btn)
@@ -118,24 +127,81 @@ class MainWindow(QMainWindow):
             self._add_url(text)
 
     def _add_url(self, url: str) -> None:
-        # Duplicate check
+        if self._is_playlist_url(url):
+            self._fetch_playlist_then_ask(url)
+            return
+        # Duplicate check for manual single-video adds
         for i in range(self._queue_panel.count()):
             if self._queue_panel.item(i).queue_item.url == url:
                 reply = QMessageBox.warning(
-                    self,
-                    "Duplicate URL",
+                    self, "Duplicate URL",
                     f"This URL is already in the queue:\n{url}\n\nAdd it anyway?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 )
                 if reply != QMessageBox.StandardButton.Yes:
                     return
                 break
+        self._add_single_url(url)
 
+    def _is_playlist_url(self, url: str) -> bool:
+        try:
+            params = parse_qs(urlparse(url).query)
+            list_id = params.get("list", [""])[0]
+            return bool(list_id) and list_id not in ("WL", "LL")
+        except Exception:
+            return False
+
+    def _fetch_playlist_then_ask(self, url: str) -> None:
+        self._add_btn.setEnabled(False)
+        self._add_btn.setText("Fetching playlist…")
+        fetcher = PlaylistFetcher(url)
+        self._playlist_fetchers.append(fetcher)
+
+        def on_fetched(urls: list) -> None:
+            self._add_btn.setEnabled(True)
+            self._add_btn.setText("Add")
+            self._playlist_fetchers.remove(fetcher)
+            count = len(urls)
+            reply = QMessageBox.question(
+                self,
+                "Playlist Detected",
+                f"This URL contains a playlist with {count} videos.\n\n"
+                f"What would you like to do?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes,
+            )
+            # Yes = download all, No = first video only, Cancel = do nothing
+            if reply == QMessageBox.StandardButton.Cancel:
+                return
+            to_add = urls if reply == QMessageBox.StandardButton.Yes else urls[:1]
+            for u in to_add:
+                self._add_single_url(u)
+
+        def on_failed(reason: str) -> None:
+            self._add_btn.setEnabled(True)
+            self._add_btn.setText("Add")
+            self._playlist_fetchers.remove(fetcher)
+            # Fall back to adding as single video
+            self._add_single_url(url)
+
+        fetcher.fetched.connect(on_fetched)
+        fetcher.failed.connect(on_failed)
+        fetcher.start()
+
+    def _add_single_url(self, url: str) -> None:
+        """Add one URL to queue (no playlist check, silent duplicate skip in batch)."""
+        for i in range(self._queue_panel.count()):
+            if self._queue_panel.item(i).queue_item.url == url:
+                return  # skip silently when batch-adding a playlist
         list_item = self._queue_panel.add_item(url)
-        # Show loading state immediately if this item is selected
         if self._queue_panel.currentItem() is list_item:
             self._detail_panel.set_loading()
-        self._start_thumbnail_fetch(list_item)
+        # Throttle: queue the worker if too many are already running
+        if len(self._thumbnail_workers) < _MAX_THUMB_WORKERS:
+            self._start_thumbnail_fetch(list_item)
+        else:
+            self._thumb_pending.append(list_item)
+        self._update_queue_counter()
 
     def _start_thumbnail_fetch(self, list_item: QueueListItem) -> None:
         worker = ThumbnailWorker(list_item.queue_item.url)
@@ -172,6 +238,26 @@ class MainWindow(QMainWindow):
             self._thumbnail_workers.remove(worker)
         except ValueError:
             pass
+        # Drain the pending queue
+        if self._thumb_pending and len(self._thumbnail_workers) < _MAX_THUMB_WORKERS:
+            self._start_thumbnail_fetch(self._thumb_pending.pop(0))
+
+    def _update_queue_counter(self) -> None:
+        total = self._queue_panel.count()
+        if total == 0:
+            self._queue_counter_label.setText("")
+            return
+        done = sum(
+            1 for i in range(total)
+            if self._queue_panel.item(i).queue_item.status
+            in (ItemStatus.DONE, ItemStatus.ERROR, ItemStatus.STOPPED)
+        )
+        if self._worker is not None:
+            self._queue_counter_label.setText(f"Video {done + 1} / {total}")
+        elif done == total:
+            self._queue_counter_label.setText(f"Done: {done} / {total}")
+        else:
+            self._queue_counter_label.setText(f"{done} / {total} done")
 
     def _on_item_selected(self, current: QueueListItem | None, _previous) -> None:
         if current is None:
@@ -214,6 +300,7 @@ class MainWindow(QMainWindow):
             self._worker = None
             self._stop_btn.setEnabled(False)
             self._start_btn.setEnabled(True)
+            self._update_queue_counter()
             self._advance_queue()
 
         def on_error(msg: str) -> None:
@@ -225,6 +312,7 @@ class MainWindow(QMainWindow):
             self._worker = None
             self._stop_btn.setEnabled(False)
             self._start_btn.setEnabled(True)
+            self._update_queue_counter()
             self._advance_queue()
 
         self._worker.progress.connect(on_progress)
@@ -234,6 +322,7 @@ class MainWindow(QMainWindow):
 
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
+        self._update_queue_counter()
         self._worker.start()
 
     def _advance_queue(self) -> None:
@@ -290,6 +379,9 @@ class MainWindow(QMainWindow):
         for worker in list(self._thumbnail_workers):
             worker.quit()
             worker.wait(500)
+        for fetcher in list(self._playlist_fetchers):
+            fetcher.quit()
+            fetcher.wait(500)
         if self._worker is not None:
             self._worker.stop()
             self._worker.wait(1000)
