@@ -128,6 +128,17 @@ def test_audio_only_unchecked_enables_video_controls(panel):
     assert panel._resolution_combo.isEnabled()
 
 
+def test_embed_subs_stays_disabled_after_audio_only_uncheck_with_no_subtitle(panel):
+    item = QueueItem(url="https://example.com/watch?v=abc")
+    item.resolutions = []; item.formats_by_resolution = {}
+    item.audio_tracks = []; item.subtitle_langs = ["en"]
+    panel.load_item(item)
+    # subtitle is "none" (default), check then uncheck audio-only
+    panel._audio_only_check.setChecked(True)
+    panel._audio_only_check.setChecked(False)
+    assert not panel._embed_subs_check.isEnabled()
+
+
 def test_lock_controls_disables_all_new_widgets(panel):
     item = QueueItem(url="https://example.com/watch?v=abc")
     item.resolutions = []; item.formats_by_resolution = {}

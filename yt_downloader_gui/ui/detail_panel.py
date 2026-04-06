@@ -285,6 +285,8 @@ class DetailPanel(QWidget):
         if self._current_item:
             self._current_item.audio_only = checked
         self._apply_audio_only_state(checked)
+        if not checked:
+            self._apply_subtitle_state(self._subtitle_combo.currentText())
 
     def _on_audio_fmt_changed(self, text: str) -> None:
         if self._current_item:
