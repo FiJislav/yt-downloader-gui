@@ -11,6 +11,7 @@ from yt_downloader_gui.core.models import ItemStatus
 from yt_downloader_gui.core.settings import AppSettings
 from yt_downloader_gui.core.thumbnail import PlaylistFetcher, ThumbnailWorker
 from yt_downloader_gui.core.updater import UpdaterWorker
+from yt_downloader_gui.__version__ import __version__
 from yt_downloader_gui.ui.detail_panel import DetailPanel
 from yt_downloader_gui.ui.queue_panel import QueueListItem, QueuePanel
 
@@ -34,7 +35,7 @@ class MainWindow(QMainWindow):
         self._queue_paused: bool = False
         self._build_ui()
         self._restore_geometry()
-        self.setWindowTitle("YT Downloader")
+        self.setWindowTitle(f"YT Downloader v{__version__}")
 
     # ------------------------------------------------------------------
     # UI Construction
