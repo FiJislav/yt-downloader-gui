@@ -265,11 +265,25 @@ class DetailPanel(QWidget):
 
         layout.addLayout(form)
 
-        # Progress bar
+        # Progress bar — retro segmented style
         self._progress_bar = QProgressBar()
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(0)
-        self._progress_bar.setFixedHeight(22)
+        self._progress_bar.setFixedHeight(28)
+        self._progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #000000;
+                background-color: #1a1a1a;
+                color: #ffffff;
+                text-align: center;
+                font-weight: bold;
+            }
+            QProgressBar::chunk {
+                background-color: #00cc00;
+                width: 18px;
+                margin: 2px;
+            }
+        """)
         layout.addWidget(self._progress_bar)
 
         # Log output
