@@ -132,15 +132,22 @@ class MainWindow(QMainWindow):
                 break
 
         list_item = self._queue_panel.add_item(url)
+        # Show loading state immediately if this item is selected
+        if self._queue_panel.currentItem() is list_item:
+            self._detail_panel.set_loading()
         self._start_thumbnail_fetch(list_item)
 
     def _start_thumbnail_fetch(self, list_item: QueueListItem) -> None:
         worker = ThumbnailWorker(list_item.queue_item.url)
         self._thumbnail_workers.append(worker)
 
-        def on_fetched(title: str, pixmap) -> None:
+        def on_fetched(title: str, pixmap, media_info: dict) -> None:
             list_item.queue_item.title = title
             list_item.queue_item.thumbnail = pixmap
+            list_item.queue_item.resolutions = media_info.get("resolutions", [])
+            list_item.queue_item.formats_by_resolution = media_info.get("formats_by_resolution", {})
+            list_item.queue_item.audio_tracks = media_info.get("audio_tracks", [])
+            list_item.queue_item.subtitle_langs = media_info.get("subtitle_langs", [])
             list_item.refresh()
             current = self._queue_panel.currentItem()
             if current is list_item:

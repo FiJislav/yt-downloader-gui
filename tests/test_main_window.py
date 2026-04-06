@@ -24,7 +24,7 @@ def test_window_title(window):
 
 
 def test_add_url_adds_to_queue(window, qtbot):
-    window._url_input.setText("https://example.com/watch?v=test1")
+    window._url_input.setText("https://example.com/watch?v=test_new")
     with patch("yt_downloader_gui.ui.main_window.ThumbnailWorker") as MockWorker:
         mock_instance = MagicMock()
         MockWorker.return_value = mock_instance
@@ -34,13 +34,13 @@ def test_add_url_adds_to_queue(window, qtbot):
 
 def test_paste_from_clipboard_adds_url(window, qtbot, qapp):
     clipboard = qapp.clipboard()
-    clipboard.setText("https://youtube.com/watch?v=clip1")
+    clipboard.setText("https://youtube.com/watch?v=clip_new")
     with patch("yt_downloader_gui.ui.main_window.ThumbnailWorker") as MockWorker:
         mock_instance = MagicMock()
         MockWorker.return_value = mock_instance
         qtbot.mouseClick(window._paste_btn, Qt.MouseButton.LeftButton)
     assert any(
-        window._queue_panel.item(i).queue_item.url == "https://youtube.com/watch?v=clip1"
+        window._queue_panel.item(i).queue_item.url == "https://youtube.com/watch?v=clip_new"
         for i in range(window._queue_panel.count())
     )
 
