@@ -1,5 +1,8 @@
 import subprocess
+import sys
 from PyQt6.QtCore import QThread, pyqtSignal
+
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 class UpdaterWorker(QThread):
@@ -17,6 +20,7 @@ class UpdaterWorker(QThread):
                 encoding="utf-8",
                 errors="replace",
                 timeout=120,
+                creationflags=_NO_WINDOW,
             )
             output = (proc.stdout + proc.stderr).strip()
             self.result.emit(output or "Update complete.")

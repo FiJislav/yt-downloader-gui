@@ -1,9 +1,13 @@
 import json
 import subprocess
+import sys
 import urllib.request
 
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtGui import QPixmap, QImage
+
+# Suppress console window on Windows
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 def parse_media_info(data: dict) -> dict:
@@ -97,6 +101,7 @@ class PlaylistFetcher(QThread):
                 capture_output=True,
                 text=True,
                 timeout=120,
+                creationflags=_NO_WINDOW,
             )
             if result.returncode != 0:
                 self.failed.emit(result.stderr.strip() or "Failed to fetch playlist")
@@ -122,6 +127,7 @@ class ThumbnailWorker(QThread):
                 capture_output=True,
                 text=True,
                 timeout=30,
+                creationflags=_NO_WINDOW,
             )
             if result.returncode != 0:
                 self.failed.emit(result.stderr.strip() or "yt-dlp --dump-json failed")

@@ -3,7 +3,7 @@ from urllib.parse import urlparse, parse_qs
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
-    QMainWindow, QMessageBox, QPushButton,
+    QMainWindow, QMessageBox, QPushButton, QAbstractButton,
     QSplitter, QVBoxLayout, QWidget,
 )
 from yt_downloader_gui.core.downloader import DownloadWorker
@@ -163,18 +163,22 @@ class MainWindow(QMainWindow):
             self._add_btn.setText("Add")
             self._playlist_fetchers.remove(fetcher)
             count = len(urls)
-            reply = QMessageBox.question(
-                self,
-                "Playlist Detected",
-                f"This URL contains a playlist with {count} videos.\n\n"
-                f"What would you like to do?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Yes,
-            )
-            # Yes = download all, No = first video only, Cancel = do nothing
-            if reply == QMessageBox.StandardButton.Cancel:
-                return
-            to_add = urls if reply == QMessageBox.StandardButton.Yes else urls[:1]
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Playlist Detected")
+            msg.setText(f"This URL contains a playlist with <b>{count} videos</b>.")
+            msg.setInformativeText("What would you like to download?")
+            btn_all = msg.addButton(f"Download All ({count})", QMessageBox.ButtonRole.AcceptRole)
+            btn_one = msg.addButton("First Video Only", QMessageBox.ButtonRole.ActionRole)
+            msg.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+            msg.setDefaultButton(btn_all)
+            msg.exec()
+            clicked = msg.clickedButton()
+            if clicked is btn_all:
+                to_add = urls
+            elif clicked is btn_one:
+                to_add = urls[:1]
+            else:
+                return  # Cancel
             for u in to_add:
                 self._add_single_url(u)
 

@@ -1,6 +1,9 @@
 import re
 import subprocess
+import sys
 from PyQt6.QtCore import QThread, pyqtSignal
+
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 from yt_downloader_gui.core.models import QueueItem
 
@@ -116,6 +119,7 @@ class DownloadWorker(QThread):
                 text=True,
                 encoding="utf-8",
                 errors="replace",
+                creationflags=_NO_WINDOW,
             )
             for line in self._process.stdout:
                 line = line.rstrip()
