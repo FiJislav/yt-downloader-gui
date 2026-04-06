@@ -15,6 +15,15 @@ class AppSettings:
     def output_dir(self, value: str) -> None:
         self._qs.setValue("output_dir", value)
 
+    @property
+    def cookies_browser(self) -> str:
+        """Browser to pull cookies from, e.g. 'chrome', 'firefox', 'edge', or '' for none."""
+        return self._qs.value("cookies_browser", "")
+
+    @cookies_browser.setter
+    def cookies_browser(self, value: str) -> None:
+        self._qs.setValue("cookies_browser", value)
+
     def save_geometry(self, geometry: bytes) -> None:
         self._qs.setValue("geometry", geometry)
 

@@ -18,7 +18,7 @@ _QUALITY_MAP = {
 }
 
 
-def build_args(item: QueueItem, output_dir: str) -> list[str]:
+def build_args(item: QueueItem, output_dir: str, cookies_browser: str = "") -> list[str]:
     """Build the yt-dlp CLI argument list for a QueueItem."""
     args = ["yt-dlp"]
 
@@ -67,6 +67,9 @@ def build_args(item: QueueItem, output_dir: str) -> list[str]:
             if item.embed_subs:
                 args += ["--embed-subs"]
 
+    if cookies_browser:
+        args += ["--cookies-from-browser", cookies_browser]
+
     if output_dir:
         args += ["-o", f"{output_dir}/%(uploader)s - %(title)s.%(ext)s"]
 
@@ -103,14 +106,15 @@ class DownloadWorker(QThread):
     finished = pyqtSignal()
     error = pyqtSignal(str)
 
-    def __init__(self, item: QueueItem, output_dir: str, parent=None):
+    def __init__(self, item: QueueItem, output_dir: str, cookies_browser: str = "", parent=None):
         super().__init__(parent)
         self._item = item
         self._output_dir = output_dir
+        self._cookies_browser = cookies_browser
         self._process: subprocess.Popen | None = None
 
     def run(self) -> None:
-        args = build_args(self._item, self._output_dir)
+        args = build_args(self._item, self._output_dir, self._cookies_browser)
         try:
             self._process = subprocess.Popen(
                 args,

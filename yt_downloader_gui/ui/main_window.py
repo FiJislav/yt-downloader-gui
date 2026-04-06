@@ -2,7 +2,7 @@ from __future__ import annotations
 from urllib.parse import urlparse, parse_qs
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+    QApplication, QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMainWindow, QMessageBox, QPushButton, QAbstractButton,
     QSplitter, QVBoxLayout, QWidget,
 )
@@ -67,9 +67,11 @@ class MainWindow(QMainWindow):
         self._queue_panel = QueuePanel()
         self._queue_panel.setMinimumWidth(200)
         self._queue_panel.currentItemChanged.connect(self._on_item_selected)
+        self._queue_panel.item_removed.connect(self._on_item_removed)
         splitter.addWidget(self._queue_panel)
 
         self._detail_panel = DetailPanel()
+        self._detail_panel.apply_to_all_requested.connect(self._on_apply_to_all)
         splitter.addWidget(self._detail_panel)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 2)
@@ -87,6 +89,15 @@ class MainWindow(QMainWindow):
 
         bottom.addStretch()
 
+        bottom.addWidget(QLabel("Cookies:"))
+        self._cookies_combo = QComboBox()
+        self._cookies_combo.addItems(["none", "chrome", "firefox", "edge", "brave", "safari"])
+        saved = self._settings.cookies_browser
+        self._cookies_combo.setCurrentText(saved if saved else "none")
+        self._cookies_combo.currentTextChanged.connect(self._on_cookies_changed)
+        self._cookies_combo.setToolTip("Use cookies from browser to bypass YouTube bot detection")
+        bottom.addWidget(self._cookies_combo)
+
         self._queue_counter_label = QLabel("")
         self._queue_counter_label.setMinimumWidth(100)
         bottom.addWidget(self._queue_counter_label)
@@ -99,6 +110,10 @@ class MainWindow(QMainWindow):
         self._stop_btn.setEnabled(False)
         self._stop_btn.clicked.connect(self._on_stop)
         bottom.addWidget(self._stop_btn)
+
+        self._clear_btn = QPushButton("Clear Queue")
+        self._clear_btn.clicked.connect(self._on_clear_queue)
+        bottom.addWidget(self._clear_btn)
 
         self._update_btn = QPushButton("Update yt-dlp")
         self._update_btn.clicked.connect(self._on_update_ytdlp)
@@ -155,7 +170,7 @@ class MainWindow(QMainWindow):
     def _fetch_playlist_then_ask(self, url: str) -> None:
         self._add_btn.setEnabled(False)
         self._add_btn.setText("Fetching playlist…")
-        fetcher = PlaylistFetcher(url)
+        fetcher = PlaylistFetcher(url, cookies_browser=self._cookies_browser())
         self._playlist_fetchers.append(fetcher)
 
         def on_fetched(urls: list) -> None:
@@ -209,7 +224,7 @@ class MainWindow(QMainWindow):
         self._update_queue_counter()
 
     def _start_thumbnail_fetch(self, list_item: QueueListItem) -> None:
-        worker = ThumbnailWorker(list_item.queue_item.url)
+        worker = ThumbnailWorker(list_item.queue_item.url, cookies_browser=self._cookies_browser())
         self._thumbnail_workers.append(worker)
 
         def on_fetched(title: str, pixmap, media_info: dict) -> None:
@@ -270,6 +285,40 @@ class MainWindow(QMainWindow):
         else:
             self._detail_panel.load_item(current.queue_item)
 
+    def _on_item_removed(self, list_item: QueueListItem) -> None:
+        if list_item in self._thumb_pending:
+            self._thumb_pending.remove(list_item)
+        self._update_queue_counter()
+
+    def _on_clear_queue(self) -> None:
+        if self._worker is not None:
+            return  # don't clear while downloading
+        self._thumb_pending.clear()
+        self._queue_panel.clear_all()
+        self._detail_panel.load_item(None)
+        self._update_queue_counter()
+
+    def _on_apply_to_all(self) -> None:
+        current = self._queue_panel.currentItem()
+        if current is None:
+            return
+        src = current.queue_item
+        for i in range(self._queue_panel.count()):
+            item = self._queue_panel.item(i)
+            if item is current:
+                continue
+            if item.queue_item.status != ItemStatus.PENDING:
+                continue
+            dst = item.queue_item
+            dst.audio_only = src.audio_only
+            dst.audio_fmt = src.audio_fmt
+            dst.audio_quality = src.audio_quality
+            dst.resolution = src.resolution
+            dst.codec = src.codec
+            dst.audio_track = src.audio_track
+            dst.subtitle_lang = src.subtitle_lang
+            dst.embed_subs = src.embed_subs
+
     def _on_start_queue(self) -> None:
         if self._worker is not None:
             return  # already running
@@ -288,7 +337,7 @@ class MainWindow(QMainWindow):
         if current is list_item:
             self._detail_panel.load_item(list_item.queue_item)
 
-        self._worker = DownloadWorker(list_item.queue_item, self._settings.output_dir)
+        self._worker = DownloadWorker(list_item.queue_item, self._settings.output_dir, cookies_browser=self._cookies_browser())
 
         def on_progress(pct: int) -> None:
             if self._queue_panel.currentItem() is list_item:
@@ -348,6 +397,12 @@ class MainWindow(QMainWindow):
                 item.refresh()
         self._stop_btn.setEnabled(False)
         self._start_btn.setEnabled(True)
+
+    def _on_cookies_changed(self, text: str) -> None:
+        self._settings.cookies_browser = "" if text == "none" else text
+
+    def _cookies_browser(self) -> str:
+        return self._settings.cookies_browser
 
     def _on_browse(self) -> None:
         folder = QFileDialog.getExistingDirectory(

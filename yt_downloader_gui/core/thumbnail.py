@@ -90,14 +90,19 @@ class PlaylistFetcher(QThread):
     fetched = pyqtSignal(list)   # list[str] of video URLs
     failed = pyqtSignal(str)
 
-    def __init__(self, url: str, parent=None):
+    def __init__(self, url: str, cookies_browser: str = "", parent=None):
         super().__init__(parent)
         self._url = url
+        self._cookies_browser = cookies_browser
 
     def run(self) -> None:
         try:
+            cmd = ["yt-dlp", "--flat-playlist", "--print", "webpage_url"]
+            if self._cookies_browser:
+                cmd += ["--cookies-from-browser", self._cookies_browser]
+            cmd.append(self._url)
             result = subprocess.run(
-                ["yt-dlp", "--flat-playlist", "--print", "webpage_url", self._url],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=120,
@@ -106,7 +111,13 @@ class PlaylistFetcher(QThread):
             if result.returncode != 0:
                 self.failed.emit(result.stderr.strip() or "Failed to fetch playlist")
                 return
-            urls = [u.strip() for u in result.stdout.splitlines() if u.strip()]
+            urls = [
+                u.strip() for u in result.stdout.splitlines()
+                if u.strip() and "youtube.com/watch" in u
+            ]
+            if not urls:
+                self.failed.emit("No valid video URLs found in playlist")
+                return
             self.fetched.emit(urls)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -116,14 +127,19 @@ class ThumbnailWorker(QThread):
     fetched = pyqtSignal(str, QPixmap, dict)   # title, pixmap, media_info
     failed = pyqtSignal(str)
 
-    def __init__(self, url: str, parent=None):
+    def __init__(self, url: str, cookies_browser: str = "", parent=None):
         super().__init__(parent)
         self._url = url
+        self._cookies_browser = cookies_browser
 
     def run(self) -> None:
         try:
+            cmd = ["yt-dlp", "--dump-json", "--no-playlist"]
+            if self._cookies_browser:
+                cmd += ["--cookies-from-browser", self._cookies_browser]
+            cmd.append(self._url)
             result = subprocess.run(
-                ["yt-dlp", "--dump-json", "--no-playlist", self._url],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=30,

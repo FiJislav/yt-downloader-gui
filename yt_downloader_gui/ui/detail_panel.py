@@ -1,9 +1,9 @@
 from __future__ import annotations
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QFrame, QHBoxLayout, QLabel,
-    QPlainTextEdit, QProgressBar, QSizePolicy,
+    QPlainTextEdit, QProgressBar, QPushButton, QSizePolicy,
     QVBoxLayout, QFormLayout, QWidget,
 )
 from yt_downloader_gui.core.models import QueueItem, ItemStatus
@@ -16,6 +16,8 @@ _AUDIO_QUALITIES = ["(best quality)", "320k", "256k", "192k", "128k"]
 
 
 class DetailPanel(QWidget):
+    apply_to_all_requested = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._current_item: QueueItem | None = None
@@ -65,6 +67,7 @@ class DetailPanel(QWidget):
 
         if item.status == ItemStatus.PENDING:
             self.unlock_controls()
+            self._apply_all_btn.setEnabled(True)
         else:
             self.lock_controls()
 
@@ -80,6 +83,7 @@ class DetailPanel(QWidget):
     def lock_controls(self) -> None:
         for w in self._all_controls():
             w.setEnabled(False)
+        self._apply_all_btn.setEnabled(False)
 
     def unlock_controls(self) -> None:
         # Re-enable all, then re-apply audio-only state
@@ -87,6 +91,7 @@ class DetailPanel(QWidget):
             w.setEnabled(True)
         self._apply_audio_only_state(self._audio_only_check.isChecked())
         self._apply_subtitle_state(self._subtitle_combo.currentText())
+        self._apply_all_btn.setEnabled(self._current_item is not None)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -264,6 +269,12 @@ class DetailPanel(QWidget):
         form.addRow("", self._embed_subs_check)
 
         layout.addLayout(form)
+
+        # Apply to all button
+        self._apply_all_btn = QPushButton("Apply settings to all pending")
+        self._apply_all_btn.setEnabled(False)
+        self._apply_all_btn.clicked.connect(self.apply_to_all_requested)
+        layout.addWidget(self._apply_all_btn)
 
         # Progress bar — retro segmented style
         self._progress_bar = QProgressBar()
