@@ -11,88 +11,172 @@ def _item(**kwargs) -> QueueItem:
 
 
 # ---------------------------------------------------------------------------
-# build_args tests
+# build_args — audio-only mode
 # ---------------------------------------------------------------------------
 
-def test_mp4_args():
-    args = build_args(_item(fmt="mp4"), output_dir="")
-    assert args == ["yt-dlp", "-f", "best", "https://example.com/watch?v=abc"]
+def test_audio_only_mp3_best_quality():
+    item = _item(audio_only=True, audio_fmt="mp3", audio_quality="(best quality)")
+    args = build_args(item, output_dir="")
+    assert "--extract-audio" in args
+    assert "--audio-format" in args
+    assert "mp3" in args
+    assert "--audio-quality" in args
+    assert "0" in args
 
 
-def test_mp3_args():
-    args = build_args(_item(fmt="mp3"), output_dir="")
-    assert args == [
-        "yt-dlp", "-f", "bestaudio",
-        "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0",
-        "https://example.com/watch?v=abc",
-    ]
+def test_audio_only_m4a_320k():
+    item = _item(audio_only=True, audio_fmt="m4a", audio_quality="320k")
+    args = build_args(item, output_dir="")
+    assert "--audio-format" in args
+    assert "m4a" in args
+    assert "320k" in args
 
 
-def test_mp3_with_audio_lang():
-    args = build_args(_item(fmt="mp3", audio_lang="ja"), output_dir="")
-    assert "-f" in args
-    assert "bestaudio[lang=ja]" in args
+def test_audio_only_best_omits_audio_format_flag():
+    item = _item(audio_only=True, audio_fmt="best", audio_quality="(best quality)")
+    args = build_args(item, output_dir="")
+    assert "--extract-audio" in args
+    assert "--audio-format" not in args
+    assert "--audio-quality" in args
+    assert "0" in args
 
 
-def test_mkv_args():
-    args = build_args(_item(fmt="mkv"), output_dir="")
-    assert "--merge-output-format" in args
-    assert "mkv" in args
-    assert "bestvideo+bestaudio" in args
-
-
-def test_4k_args():
-    args = build_args(_item(fmt="4k"), output_dir="")
-    assert "--merge-output-format" in args
-    assert "mp4" in args
-    assert any("height<=2160" in a for a in args)
-
-
-def test_4k_no_av1_args():
-    args = build_args(_item(fmt="4k-no-av1"), output_dir="")
-    assert any("vcodec!=av01" in a for a in args)
-    assert "--merge-output-format" in args
-    assert "mkv" in args
-
-
-def test_subs_args():
-    args = build_args(_item(fmt="subs", sub_lang="fr"), output_dir="")
-    assert "--write-subs" in args
-    assert "--sub-lang" in args
-    assert "fr" in args
-
-
-def test_embed_subs_format_args():
-    args = build_args(_item(fmt="embed-subs", sub_lang="en"), output_dir="")
-    assert "--embed-subs" in args
-    assert "--merge-output-format" in args
-    assert "mp4" in args
-
-
-def test_embed_subs_checkbox_on_mp4():
-    args = build_args(_item(fmt="mp4", embed_subs=True, sub_lang="de"), output_dir="")
-    assert "--embed-subs" in args
-    assert "de" in args
-
-
-def test_embed_subs_checkbox_not_duplicated_on_embed_subs_format():
-    args = build_args(_item(fmt="embed-subs", embed_subs=True), output_dir="")
-    assert args.count("--embed-subs") == 1
-
-
-def test_output_dir_added():
-    args = build_args(_item(fmt="mp4"), output_dir="C:/Videos")
-    assert "-o" in args
-    assert "C:/Videos/%(title)s.%(ext)s" in args
-
-
-def test_url_is_last_arg():
-    args = build_args(_item(fmt="mp4"), output_dir="")
+def test_audio_only_url_is_last():
+    item = _item(audio_only=True, audio_fmt="mp3")
+    args = build_args(item, output_dir="")
     assert args[-1] == "https://example.com/watch?v=abc"
 
 
 # ---------------------------------------------------------------------------
-# DownloadWorker tests
+# build_args — video mode resolutions
+# ---------------------------------------------------------------------------
+
+def test_video_best_available():
+    item = _item(resolution="Best available", codec="Best available")
+    args = build_args(item, output_dir="")
+    assert "-f" in args
+    f_val = args[args.index("-f") + 1]
+    assert "bestvideo" in f_val
+    assert "bestaudio" in f_val
+    assert "height" not in f_val
+
+
+def test_video_resolution_no_codec():
+    item = _item(resolution="1080p", codec="Best available")
+    args = build_args(item, output_dir="")
+    f_val = args[args.index("-f") + 1]
+    assert "height<=1080" in f_val
+    assert "bestaudio" in f_val
+
+
+def test_video_resolution_and_codec():
+    item = _item(resolution="1080p", codec="mp4 (avc1, 30fps)")
+    args = build_args(item, output_dir="")
+    f_val = args[args.index("-f") + 1]
+    assert "height<=1080" in f_val
+    assert "ext=mp4" in f_val
+    assert "avc1" in f_val
+
+
+def test_video_mp4_merge_format():
+    item = _item(resolution="1080p", codec="mp4 (avc1, 30fps)")
+    args = build_args(item, output_dir="")
+    assert "--merge-output-format" in args
+    assert args[args.index("--merge-output-format") + 1] == "mp4"
+
+
+def test_video_webm_merge_format_is_mkv():
+    item = _item(resolution="720p", codec="webm (vp9, 30fps)")
+    args = build_args(item, output_dir="")
+    assert "--merge-output-format" in args
+    assert args[args.index("--merge-output-format") + 1] == "mkv"
+
+
+def test_video_best_available_merge_format_is_mp4():
+    item = _item(resolution="Best available", codec="Best available")
+    args = build_args(item, output_dir="")
+    assert "--merge-output-format" in args
+    assert args[args.index("--merge-output-format") + 1] == "mp4"
+
+
+# ---------------------------------------------------------------------------
+# build_args — subtitles
+# ---------------------------------------------------------------------------
+
+def test_no_subtitles_when_subtitle_lang_empty():
+    item = _item(subtitle_lang="")
+    args = build_args(item, output_dir="")
+    assert "--write-subs" not in args
+    assert "--write-auto-subs" not in args
+
+
+def test_regular_subtitle():
+    item = _item(subtitle_lang="fr")
+    args = build_args(item, output_dir="")
+    assert "--write-subs" in args
+    assert "--sub-lang" in args
+    assert "fr" in args
+    assert "--write-auto-subs" not in args
+
+
+def test_auto_subtitle_strips_suffix():
+    item = _item(subtitle_lang="en-auto")
+    args = build_args(item, output_dir="")
+    assert "--write-auto-subs" in args
+    assert "--sub-lang" in args
+    assert "en" in args
+    assert "en-auto" not in args
+
+
+def test_embed_subs():
+    item = _item(subtitle_lang="en", embed_subs=True)
+    args = build_args(item, output_dir="")
+    assert "--embed-subs" in args
+
+
+def test_no_embed_subs_without_subtitle_lang():
+    item = _item(subtitle_lang="", embed_subs=True)
+    args = build_args(item, output_dir="")
+    assert "--embed-subs" not in args
+
+
+# ---------------------------------------------------------------------------
+# build_args — audio track selection
+# ---------------------------------------------------------------------------
+
+def test_audio_track_best_not_added_to_format():
+    item = _item(resolution="1080p", codec="Best available", audio_track="(best)")
+    args = build_args(item, output_dir="")
+    f_val = args[args.index("-f") + 1]
+    assert "language" not in f_val
+
+
+def test_audio_track_specific_lang():
+    item = _item(resolution="1080p", codec="Best available", audio_track="ja")
+    args = build_args(item, output_dir="")
+    f_val = args[args.index("-f") + 1]
+    assert "language=ja" in f_val
+
+
+# ---------------------------------------------------------------------------
+# build_args — output dir
+# ---------------------------------------------------------------------------
+
+def test_output_dir_added():
+    item = _item()
+    args = build_args(item, output_dir="C:/Videos")
+    assert "-o" in args
+    assert "C:/Videos/%(title)s.%(ext)s" in args
+
+
+def test_url_is_last():
+    item = _item()
+    args = build_args(item, output_dir="")
+    assert args[-1] == "https://example.com/watch?v=abc"
+
+
+# ---------------------------------------------------------------------------
+# DownloadWorker tests (unchanged logic, new QueueItem fields)
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
@@ -101,7 +185,7 @@ def qapp():
 
 
 def test_download_worker_emits_progress(qapp, qtbot):
-    item = _item(fmt="mp4")
+    item = _item()
     worker = DownloadWorker(item, output_dir="")
 
     mock_proc = MagicMock()
@@ -123,7 +207,7 @@ def test_download_worker_emits_progress(qapp, qtbot):
 
 
 def test_download_worker_emits_log_lines(qapp, qtbot):
-    item = _item(fmt="mp4")
+    item = _item()
     worker = DownloadWorker(item, output_dir="")
 
     mock_proc = MagicMock()
@@ -141,7 +225,7 @@ def test_download_worker_emits_log_lines(qapp, qtbot):
 
 
 def test_download_worker_emits_error_on_nonzero_exit(qapp, qtbot):
-    item = _item(fmt="mp4")
+    item = _item()
     worker = DownloadWorker(item, output_dir="")
 
     mock_proc = MagicMock()
@@ -160,7 +244,7 @@ def test_download_worker_emits_error_on_nonzero_exit(qapp, qtbot):
 
 
 def test_download_worker_stop_terminates_process(qapp, qtbot):
-    item = _item(fmt="mp4")
+    item = _item()
     worker = DownloadWorker(item, output_dir="")
 
     mock_proc = MagicMock()
