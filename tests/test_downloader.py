@@ -99,6 +99,13 @@ def test_video_best_available_merge_format_is_mp4():
     assert args[args.index("--merge-output-format") + 1] == "mp4"
 
 
+def test_video_resolution_only_merge_format_is_mp4():
+    item = _item(resolution="1080p", codec="Best available")
+    args = build_args(item, output_dir="")
+    assert "--merge-output-format" in args
+    assert args[args.index("--merge-output-format") + 1] == "mp4"
+
+
 # ---------------------------------------------------------------------------
 # build_args — subtitles
 # ---------------------------------------------------------------------------

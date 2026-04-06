@@ -41,7 +41,7 @@ def build_args(item: QueueItem, output_dir: str) -> list[str]:
             audio_part = f"bestaudio[language={lang}]/bestaudio" if lang else "bestaudio"
             fmt_sel = f"bestvideo+{audio_part}/best"
         elif item.codec == "Best available":
-            audio_part = f"bestaudio[language={lang}]/bestaudio[height<={height}]+bestaudio" if lang else "bestaudio"
+            audio_part = f"bestaudio[language={lang}]/bestaudio" if lang else "bestaudio"
             fmt_sel = f"bestvideo[height<={height}]+{audio_part}/best"
         else:
             ext, vcodec_short = _parse_codec(item.codec)
@@ -87,7 +87,7 @@ def _parse_codec(codec: str) -> tuple[str, str]:
 
 def _merge_format(codec: str, resolution: str) -> str:
     """Determine --merge-output-format value."""
-    if codec == "Best available" and resolution == "Best available":
+    if codec == "Best available":
         return "mp4"
     if codec.startswith("mp4"):
         return "mp4"
