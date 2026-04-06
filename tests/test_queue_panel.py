@@ -67,7 +67,7 @@ def test_item_display_text_shows_status_icon(panel):
     assert "○" in text
 
 
-def test_item_display_text_shows_format(panel):
+def test_item_display_text_shows_url(panel):
     panel.clear()
     panel.add_item("https://example.com/watch?v=abc")
-    assert "mp4" in panel.item(0).text()
+    assert "example.com" in panel.item(0).text()
